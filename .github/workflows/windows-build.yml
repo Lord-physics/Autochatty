@@ -1,4 +1,4 @@
-name: Construir Autochatty Windows v7
+name: Construir Autochatty Windows v8
 on:
   workflow_dispatch:
   push:
@@ -33,12 +33,12 @@ jobs:
           New-Item -ItemType Directory -Force -Path package | Out-Null
           Copy-Item dist/ControladorChatGPT.exe package/
           Copy-Item LEEME.md,PRUEBA_EN_TU_PC.md,requirements.txt,iniciar.bat,instalar.bat -Destination package/
-          Copy-Item ../releases/Actualizar_Autochatty_a_v7.exe package/
-          Compress-Archive -Path package/* -DestinationPath Autochatty_v7_Windows.zip -Force
+          Copy-Item ../releases/Actualizar_Autochatty_a_v8.exe package/
+          Compress-Archive -Path package/* -DestinationPath Autochatty_v8_Windows.zip -Force
       - uses: actions/upload-artifact@v4
         with:
-          name: Autochatty-v7-Windows
-          path: Autochatty/Autochatty_v7_Windows.zip
+          name: Autochatty-v8-Windows
+          path: Autochatty/Autochatty_v8_Windows.zip
           if-no-files-found: error
       - name: Publicar ejecutables si es etiqueta v*
         if: startsWith(github.ref, 'refs/tags/v')
@@ -46,4 +46,4 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
         run: |
-          gh release create '${{ github.ref_name }}' Autochatty_v7_Windows.zip dist/ControladorChatGPT.exe --title 'Autochatty ${{ github.ref_name }}' --notes 'Compilación experimental para Windows; consulte el LEEME.' --verify-tag
+          gh release create '${{ github.ref_name }}' Autochatty_v8_Windows.zip dist/ControladorChatGPT.exe --title 'Autochatty ${{ github.ref_name }}' --notes 'Compilación experimental para Windows; consulte el LEEME.' --verify-tag

@@ -15,10 +15,11 @@ UNKNOWN_PROJECT = 'Sin proyecto verificado'
 CHAT_LIST_NAMES = frozenset({
     'chats', 'conversaciones', 'recent chats', 'recent conversations',
     'recientes', 'historial de chats', 'chat history', 'history', 'historial',
-    'your chats', 'tus chats', 'recents', 'recent', 'chats recientes', 'conversaciones recientes',
+    'your chats', 'tus chats', 'recents', 'recent', 'chats recientes', 'conversaciones recientes', 'recent items', 'recent items',
 })
 WHITESPACE = re.compile(r'\s+')
 PROJECT_LIST_NAMES = frozenset({'proyectos', 'projects', 'your projects', 'tus proyectos'})
+# Navigational controls are never treated as conversations, even inside a sidebar.
 NON_CHAT_LABELS = frozenset({
     'nuevo chat', 'new chat', 'chat nuevo', 'new conversation', 'nueva conversacion',
     'buscar', 'buscar chats', 'search', 'search chats', 'buscar conversaciones',
@@ -31,7 +32,7 @@ NON_CHAT_LABELS = frozenset({
     'proyectos', 'projects', 'your projects', 'tus proyectos',
     'crear proyecto', 'new project', 'nuevo proyecto',
     'espacios de trabajo', 'workspaces', 'workspace', 'recientes', 'recent',
-    'chats', 'tus chats', 'your chats', 'historial', 'history',
+    'chats', 'tus chats', 'your chats', 'historial', 'history', 'recents', 'recent items', 'recents', 'recent items',
 })
 SECTION_BOUNDARIES = NON_CHAT_LABELS | PROJECT_LIST_NAMES
 SIDEBAR_TOGGLE_LABELS = frozenset({
@@ -62,7 +63,11 @@ def _sidebar_bounds(window_rect: tuple) -> tuple[float, float]:
 
 
 def is_candidate(title: str, role: str, rect: tuple, window_rect: tuple) -> bool:
-    """Verify sidebar geometry; require additional structural proof later."""
+    """Geometry and label check; structural proof is required separately.
+
+    Hyperlinks are used by Chromium/WebView2 accessible sidebars. Generic
+    Buttons and Text controls cannot qualify on their own.
+    """
     if role not in {'ListItem', 'TreeItem', 'Hyperlink'} or not isinstance(title, str):
         return False
     title = clean_title(title)
@@ -78,7 +83,7 @@ def is_candidate(title: str, role: str, rect: tuple, window_rect: tuple) -> bool
 
 
 def _control_name(control) -> str:
-    """Read a literal accessible name, without guessing a title."""
+    """Use only verbatim accessible names, never text generated from a guess."""
     try:
         name = control.window_text()
         if not name:
@@ -89,6 +94,7 @@ def _control_name(control) -> str:
 
 
 def _sidebar_headings(controls, bounds):
+    """Visible genuine section headings, including Chromium's Text controls."""
     cut, upper = _sidebar_bounds(bounds)
     wl, wt, _, _ = bounds
     headings = []
@@ -111,12 +117,18 @@ def _sidebar_headings(controls, bounds):
 
 
 def _in_chat_heading_region(control, bounds, headings) -> bool:
+    """Positive section heading + spatially following sidebar row.
+
+    Stops at the next visible non-chat section; importantly, it never infers a
+    chat from arbitrary response text or a loose left-aligned label.
+    """
     try:
         left, top, right, bottom = _rect(control)
     except Exception:
         return False
     latest = None
     for heading_top, heading_bottom, label in headings:
+        # A labelled pane may span the whole sidebar; only headings are boundaries.
         if heading_bottom > top or heading_bottom - heading_top > 90:
             continue
         if latest is None or heading_top > latest[0]:
@@ -125,7 +137,7 @@ def _in_chat_heading_region(control, bounds, headings) -> bool:
 
 
 def _clickable_ancestor(control, window):
-    """Text child is a chat only if nested in genuine clickable navigation."""
+    """A Text child can identify a chat only if nested in a real nav item."""
     cursor = control
     for _ in range(3):
         try:
@@ -145,11 +157,13 @@ def _candidate_row(control, window, bounds, headings):
             return None
         role = control.element_info.control_type
         title = _control_name(control)
+        # WebView2 may expose chat navigation as a Button. A button is only
+        # accepted AFTER an observed chat section heading or named chat list.
         navigation = control
         if role == 'Text':
             navigation = _clickable_ancestor(control, window)
             if navigation is None:
-                return None
+                return None  # plain sidebar labels aren't clickable conversations
         elif role not in {'Button', 'ListItem', 'TreeItem', 'Hyperlink'}:
             return None
         if not is_candidate(title, 'Hyperlink', _rect(control), bounds):
@@ -157,6 +171,7 @@ def _candidate_row(control, window, bounds, headings):
         if not (_within_explicit_chat_list(navigation, window)
                 or _in_chat_heading_region(control, bounds, headings)):
             return None
+        # Do not mistake an actual section heading for a chat even if clickable.
         if title.casefold() in SECTION_BOUNDARIES:
             return None
         return title
@@ -172,7 +187,6 @@ def _chat_rows(window, controls, bounds):
         if title:
             rows.append((ctrl, title))
     return rows
-
 
 def consolidate_titles(titles: list[str]) -> list[DiscoveredChat]:
     grouped = {}
@@ -253,7 +267,6 @@ def scan_window(window, limit: int = 500) -> list[DiscoveredChat]:
             break
     return consolidate_titles(titles)
 
-
 def _all_controls(window):
     try:
         return window.descendants()
@@ -291,7 +304,7 @@ def _project_for_chat(control, window) -> str:
     """Project only from verified UIA hierarchy; otherwise unverified."""
     project=_project_ancestor(control,window)
     if project is not None:
-        return clean_title(project.window_text())
+        return _control_name(project)
     child=control
     for _ in range(12):
         try:
@@ -314,7 +327,7 @@ def _project_for_chat(control, window) -> str:
 
 
 def scan_window_with_projects(window, limit: int = 500) -> list[DiscoveredChat]:
-    """Read only genuine accessible chat navigation and verified project parents."""
+    """Real UIA navigation names and only hierarchy-verified projects."""
     try:
         controls = window.descendants()
         bounds = _rect(window)
@@ -326,6 +339,7 @@ def scan_window_with_projects(window, limit: int = 500) -> list[DiscoveredChat]:
         rect = _rect(ctrl)
         project = _project_for_chat(ctrl, window)
         key = (project.casefold(), title.casefold())
+        # The same row may be exposed by several accessibility wrappers.
         identity = (*key, int((rect[1] + rect[3]) / 24))
         if identity in seen:
             continue
@@ -339,7 +353,7 @@ def scan_window_with_projects(window, limit: int = 500) -> list[DiscoveredChat]:
 
 
 def _scroll_containers(window):
-    """Scroll verified chat containers even when the UIA container is unnamed."""
+    """Find scroll parents of VERIFIED chat rows, even if their UIA name is empty."""
     controls = _all_controls(window)
     try:
         bounds = _rect(window)
@@ -365,6 +379,7 @@ def _scroll_containers(window):
                     break
             except Exception:
                 break
+    # Also retain the original explicitly named chat list scanning strategy.
     for ctrl in controls:
         if _is_named_list(ctrl, CHAT_LIST_NAMES):
             scroll = _scrollable(ctrl)
@@ -375,7 +390,7 @@ def _scroll_containers(window):
 
 
 def _expand_sidebar_if_closed(window):
-    """Only click a verified Open-sidebar button, never guess target controls."""
+    """Open only a UIA button explicitly labelled 'Open sidebar' (safe fallback)."""
     try:
         bounds = _rect(window)
         wl, wt, _, _ = bounds
@@ -397,7 +412,6 @@ def _expand_sidebar_if_closed(window):
         return True
     except Exception:
         return False
-
 
 def _project_expanders(window):
     """Only expand verified project rows, restore collapsed states later."""
@@ -424,7 +438,7 @@ def _project_expanders(window):
     return items
 
 
-def discover_all_chats(limit: int = 2000, seconds: float = MAX_SCAN_SECONDS) -> list[DiscoveredChat]:
+def discover_all_chats(limit: int = 2000, seconds: float = MAX_SCAN_SECONDS, window=None) -> list[DiscoveredChat]:
     """Best-effort passive inventory of sidebar, including UIA scroll ranges.
 
     Does not open messages, scrape network requests, read cookies or local caches,
@@ -433,7 +447,7 @@ def discover_all_chats(limit: int = 2000, seconds: float = MAX_SCAN_SECONDS) -> 
     """
     if not 1 <= limit <= 5000:
         raise ValueError('Límite fuera de rango')
-    window = ensure_app_window()
+    window = window if window is not None else ensure_app_window()
     deadline = time.monotonic() + max(1, min(float(seconds), 75))
     records: dict[tuple[str, str], DiscoveredChat] = {}
     ambiguous: set[str] = set()
@@ -449,7 +463,8 @@ def discover_all_chats(limit: int = 2000, seconds: float = MAX_SCAN_SECONDS) -> 
     collect()
     if not records and _expand_sidebar_if_closed(window):
         collect()
-    # WebView may open the window before painting its accessibility tree.
+    # WebView may paint before its accessibility navigation tree exists.
+    # A bounded warm-up avoids reporting zero chats just after launching ChatGPT.
     retry_deadline = min(deadline, time.monotonic() + 4.0)
     while not records and time.monotonic() < retry_deadline:
         time.sleep(.55)

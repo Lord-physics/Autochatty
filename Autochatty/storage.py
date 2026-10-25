@@ -13,7 +13,7 @@ CONFIG_FILE = APP_DIR / 'controlador.json'
 
 def defaults() -> dict:
     return {
-        'version': 6,
+        'version': 8,
         'schedule_mode': 'ventana',
         'window_start': '02:00',
         'window_end': '06:00',
@@ -49,13 +49,13 @@ def load() -> dict:
                             chat['last_result'] = 'Migrado de v2: revisar el intento anterior manualmente'
                             chat['pending_token'] = ''
                             chat['attempt_state'] = ''
-                    cfg['version'] = 6
+                    cfg['version'] = 8
                 else:
                     for chat in cfg['chats']:
                         chat.setdefault('app_title', chat.get('name', ''))
                     if int(cfg.get('version', 3)) < 5:
                         cfg['auto_send'] = False  # Nuevo adaptador UIA: volver a confirmar permiso
-                    cfg['version'] = 6
+                    cfg['version'] = 8
                 for chat in cfg['chats']:
                     chat.setdefault('project', 'Sin proyecto verificado')
                     chat.setdefault('project_id', '')

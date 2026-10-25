@@ -1,15 +1,13 @@
-# Autochatty
+# Autochatty v8
 
-Controlador experimental de trabajos de ChatGPT en Windows 10/11.
+Controlador experimental de ChatGPT para Windows.
 
-## Versión 7 — detección corregida
+**Version 8:** el explorador de conversaciones distingue las secciones actuales **Recientes** y **Proyectos**, muestra proyectos accesibles aunque no expongan sus chats, y permite elegir chats accesibles con un clic. Se conserva la cola de trabajos y los horarios.
 
-La v6 filtraba exclusivamente listas UIA con nombre "Chats" y filas ListItem/TreeItem. La v7 reconoce también enlaces, botones y texto asociado a navegación, **solo dentro de una zona de chats verificable**. Detecta la barra lateral si Windows expone su control y espera a que cargue la app.
+**Limitacion:** la accesibilidad de Windows no garantiza la enumeracion completa de la cuenta. Los nombres se leen de la interfaz real; no se generan nombres ni se importan datos externos automaticamente.
 
-Descubre automáticamente las conversaciones accesibles y permite seleccionarlas con un clic. No inventa nombres y solo agrupa por proyectos si la relación es verificable. **No garantiza un inventario completo de la cuenta:** la aplicación oficial puede no exponer todas las conversaciones a accesibilidad UIA.
+Cuando la app no expone chats o proyectos se genera un diagnostico local sin nombres privados en `%LOCALAPPDATA%\ControladorChatGPT\diagnostico_uia.json`. No se envia automaticamente.
 
-### Ejecutable Windows
+**Compilacion:** GitHub Actions compila `ControladorChatGPT.exe` y publica un artefacto descargable: [Actions](https://github.com/Lord-physics/Autochatty/actions). No se ha validado aun en el equipo Windows del usuario.
 
-GitHub Actions compila el nuevo \`ControladorChatGPT.exe\`; consulta [Actions](https://github.com/Lord-physics/Autochatty/actions) para descargar el artefacto \`Autochatty-v7-Windows\` después de que el workflow termine. El EXE v6 anterior no contiene la corrección.
-
-Documentación: [LEEME](Autochatty/LEEME.md) y [Prueba en Windows](Autochatty/PRUEBA_EN_TU_PC.md). No subas exportaciones, historial ni archivos de configuración personales.
+Documentacion: [LEEME](Autochatty/LEEME.md).

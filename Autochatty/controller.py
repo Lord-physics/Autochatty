@@ -19,6 +19,8 @@ import state_machine
 import scheduler
 import storage
 import chat_discovery
+import project_discovery
+import uia_diagnostic
 import export_import
 
 HERE = Path(sys.executable).resolve().parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parent
@@ -103,7 +105,7 @@ class ChatDialog(tk.Toplevel):
 class Controller(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title('Autochatty v7 - Detección mejorada de chats')
+        self.title('Autochatty v8 - Chats y proyectos')
         self.geometry('1140x780')
         self.minsize(800, 580)
         self.cfg = storage.load()
@@ -246,10 +248,16 @@ class Controller(tk.Tk):
                 import pythoncom
                 pythoncom.CoInitialize()
                 initialized = True
-                found = chat_discovery.discover_all_chats()
-                self.messages.put(('discovery', found, None))
+                found, projects = project_discovery.discover_inventory()
+                if not found or not projects:
+                    try:
+                        from app_adapter import ensure_app_window
+                        uia_diagnostic.save_redacted_diagnostic(ensure_app_window())
+                    except Exception:
+                        pass
+                self.messages.put(('discovery', found, None, projects))
             except Exception as exc:
-                self.messages.put(('discovery', [], str(exc)))
+                self.messages.put(('discovery', [], str(exc), []))
             finally:
                 if initialized:
                     pythoncom.CoUninitialize()
@@ -272,17 +280,18 @@ class Controller(tk.Tk):
             return
         self.show_discovered(found)
 
-    def show_discovered(self, found):
+    def show_discovered(self, found, projects=None):
         """Automatic project-grouped picker. One click registers/unregisters locally.
 
         No import wizard, no confirmation, no invented conversations. Windows UIA
         sometimes exposes only a subset; show that limitation in-place.
         """
         self.scanning = False
-        if not found:
+        if not found and not projects:
             self.info.set('No se han detectado chats verificables tras comprobar la barra lateral y esperar a ChatGPT. '
                           'La app puede no exponer sus conversaciones a Accesibilidad de Windows. '
-                          'Autochatty no inventa títulos ni selecciona conversaciones dudosas.')
+                          'Autochatty no inventa títulos ni selecciona conversaciones dudosas. '
+                          'Diagnostico: %LOCALAPPDATA%/ControladorChatGPT/diagnostico_uia.json')
             return
         popup = tk.Toplevel(self)
         popup.title('Elige tus chats de ChatGPT')
@@ -306,6 +315,13 @@ class Controller(tk.Tk):
         sc.pack(side='right',fill='y')
         tree.configure(yscrollcommand=sc.set)
         groups={}
+        for project_item in projects or []:
+            project=project_item.name
+            if project not in groups:
+                group='g'+str(len(groups))
+                groups[project]=group
+                tree.insert('','end',iid=group,text=project,open=True, values=(
+                    '', '', 'Proyecto real detectado; chats no accesibles si no aparecen debajo'))
         for i,c in enumerate(found):
             project=getattr(c,'project',export_import.UNKNOWN_PROJECT)
             if project not in groups:
@@ -357,9 +373,9 @@ class Controller(tk.Tk):
         tree.bind('<ButtonRelease-1>',choose)
         footer=ttk.Frame(popup)
         footer.pack(fill='x',padx=12,pady=10)
-        ttk.Label(footer,text=f'{len(found)} entradas accesibles detectadas · selección guardada en el momento').pack(side='left')
+        ttk.Label(footer,text=f'{len(found)} chats y {len(projects or [])} proyectos detectados · selección guardada en el momento').pack(side='left')
         ttk.Button(footer,text='Cerrar lista',command=popup.destroy).pack(side='right')
-        self.status.set(f'{len(found)} conversaciones visibles/localizables')
+        self.status.set(f'{len(found)} chats y {len(projects or [])} proyectos visibles')
 
     def _find_discovered_chat(self, item):
         chat_id=getattr(item,'chat_id','')
@@ -616,13 +632,13 @@ class Controller(tk.Tk):
                 if item[0] == 'progress':
                     self.info.set(item[1])
                 elif item[0] == 'discovery':
-                    _, found, error = item
+                    _, found, error, projects = item
                     self.status.set('Listo')
                     if error:
                         self.scanning = False
                         self.info.set('No se pudo comprobar la app: '+error[:250])
                     else:
-                        self.show_discovered(found)
+                        self.show_discovered(found, projects)
                 elif item[0] == 'sent':
                     cid = item[1]
                     chat = next((c for c in self.cfg['chats'] if c['id'] == cid), None)

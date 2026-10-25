@@ -15,7 +15,7 @@ class StorageUpgradeTests(unittest.TestCase):
             with patch.object(storage,'APP_DIR',Path(folder)),patch.object(storage,'CONFIG_FILE',f):
                 cfg=storage.load()
             self.assertFalse(cfg['auto_send'])
-            self.assertEqual(cfg['version'],6)
+            self.assertEqual(cfg['version'],8)
 
     def test_v2_does_not_keep_auto_send_permission(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -29,7 +29,7 @@ class StorageUpgradeTests(unittest.TestCase):
                 self.assertEqual(cfg['chats'][0]['app_title'], 'Chat anterior')
                 self.assertEqual(cfg['chats'][0]['status'], 'revision')
                 self.assertEqual(cfg['chats'][0]['pending_token'], '')
-                self.assertEqual(cfg['version'],6)
+                self.assertEqual(cfg['version'],8)
 
 
 if __name__ == '__main__':
