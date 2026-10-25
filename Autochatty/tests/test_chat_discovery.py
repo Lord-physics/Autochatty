@@ -60,3 +60,52 @@ class ScanMoreTests(unittest.TestCase):
         proj=Control('Proyecto A','TreeItem',(20,100,400,124),parent=projects)
         win.children=[projects,proj]
         self.assertEqual(scan_window(win),[])
+
+
+class ChromiumSidebarTests(unittest.TestCase):
+    def test_link_below_text_heading_is_verified(self):
+        win=Window([])
+        heading=Control('Chats','Text',(25,90,180,115),win)
+        item=Control('Cálculo de ondas','Hyperlink',(30,145,320,173),win)
+        win.children=[heading,item]
+        from chat_discovery import scan_window_with_projects,UNKNOWN_PROJECT
+        self.assertEqual([(c.title,c.project) for c in scan_window_with_projects(win)],
+                         [('Cálculo de ondas',UNKNOWN_PROJECT)])
+
+    def test_button_below_chat_heading_but_not_navigation_controls(self):
+        win=Window([])
+        heading=Control('Chats','Header',(25,90,180,114),win)
+        actual=Control('Trabajo de programación','Button',(40,151,290,180),win)
+        navigation=Control('New chat','Button',(40,185,290,210),win)
+        win.children=[heading,actual,navigation]
+        self.assertEqual([c.title for c in scan_window(win)],['Trabajo de programación'])
+
+    def test_text_child_requires_clickable_parent(self):
+        win=Window([])
+        heading=Control('Chats','Text',(25,90,180,114),win)
+        clickable=Control('','Hyperlink',(30,130,390,170),win)
+        title=Control('Proyecto satélite','Text',(45,140,280,160),clickable)
+        unrelated=Control('No es un chat','Text',(45,200,280,220),win)
+        win.children=[heading,clickable,title,unrelated]
+        self.assertEqual([c.title for c in scan_window(win)],['Proyecto satélite'])
+
+    def test_following_projects_section_stops_chat_scan(self):
+        win=Window([])
+        heading=Control('Chats','Text',(25,90,180,114),win)
+        title=Control('Chat de verdad','Hyperlink',(45,160,280,188),win)
+        projects=Control('Proyectos','Text',(25,200,180,230),win)
+        project_button=Control('Proyecto documentación','Button',(45,250,280,280),win)
+        win.children=[heading,title,projects,project_button]
+        self.assertEqual([c.title for c in scan_window(win)],['Chat de verdad'])
+
+    def test_no_heading_no_nav_list_no_chats(self):
+        win=Window([Control('Nombre ambiguo','Hyperlink',(45,160,280,190),None)])
+        self.assertEqual(scan_window(win),[])
+
+    def test_repeated_real_chat_titles_rejected_as_ambiguous(self):
+        win=Window([])
+        heading=Control('Chats','Text',(25,90,180,114),win)
+        one=Control('Igual','Hyperlink',(45,160,280,187),win)
+        two=Control('Igual','Hyperlink',(45,205,280,233),win)
+        win.children=[heading,one,two]
+        self.assertEqual(scan_window(win)[0].duplicates,2)

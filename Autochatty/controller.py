@@ -103,7 +103,7 @@ class ChatDialog(tk.Toplevel):
 class Controller(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title('Autochatty v6 - Seleccion automatica de chats')
+        self.title('Autochatty v7 - Detección mejorada de chats')
         self.geometry('1140x780')
         self.minsize(800, 580)
         self.cfg = storage.load()
@@ -280,8 +280,9 @@ class Controller(tk.Tk):
         """
         self.scanning = False
         if not found:
-            self.info.set('La aplicación no expuso chats verificables. Abre la barra lateral de ChatGPT. '
-                          'No se han inventado títulos ni importado datos externos.')
+            self.info.set('No se han detectado chats verificables tras comprobar la barra lateral y esperar a ChatGPT. '
+                          'La app puede no exponer sus conversaciones a Accesibilidad de Windows. '
+                          'Autochatty no inventa títulos ni selecciona conversaciones dudosas.')
             return
         popup = tk.Toplevel(self)
         popup.title('Elige tus chats de ChatGPT')

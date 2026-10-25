@@ -15,10 +15,29 @@ UNKNOWN_PROJECT = 'Sin proyecto verificado'
 CHAT_LIST_NAMES = frozenset({
     'chats', 'conversaciones', 'recent chats', 'recent conversations',
     'recientes', 'historial de chats', 'chat history', 'history', 'historial',
-    'your chats', 'tus chats',
+    'your chats', 'tus chats', 'recents', 'recent', 'chats recientes', 'conversaciones recientes',
 })
 WHITESPACE = re.compile(r'\s+')
 PROJECT_LIST_NAMES = frozenset({'proyectos', 'projects', 'your projects', 'tus proyectos'})
+NON_CHAT_LABELS = frozenset({
+    'nuevo chat', 'new chat', 'chat nuevo', 'new conversation', 'nueva conversacion',
+    'buscar', 'buscar chats', 'search', 'search chats', 'buscar conversaciones',
+    'search conversations', 'biblioteca', 'library', 'gpts', 'explorar gpts',
+    'explore gpts', 'explorar', 'explore', 'archivados', 'archived',
+    'ajustes', 'settings', 'ayuda', 'help', 'perfil', 'profile',
+    'ver mas', 'ver más', 'show more', 'see more', 'more', 'más', 'mas',
+    'ocultar barra lateral', 'hide sidebar', 'close sidebar',
+    'abrir barra lateral', 'open sidebar', 'mostrar barra lateral', 'show sidebar',
+    'proyectos', 'projects', 'your projects', 'tus proyectos',
+    'crear proyecto', 'new project', 'nuevo proyecto',
+    'espacios de trabajo', 'workspaces', 'workspace', 'recientes', 'recent',
+    'chats', 'tus chats', 'your chats', 'historial', 'history',
+})
+SECTION_BOUNDARIES = NON_CHAT_LABELS | PROJECT_LIST_NAMES
+SIDEBAR_TOGGLE_LABELS = frozenset({
+    'abrir barra lateral', 'open sidebar', 'mostrar barra lateral', 'show sidebar',
+    'expand sidebar', 'expandir barra lateral',
+})
 MAX_SCAN_SECONDS = 24
 MAX_SCROLL_STEPS = 36
 
@@ -37,20 +56,122 @@ def clean_title(s: str) -> str:
     return WHITESPACE.sub(' ', s).strip()
 
 
+def _sidebar_bounds(window_rect: tuple) -> tuple[float, float]:
+    wl, wt, wr, wb = window_rect
+    return wl + min(500.0, .55 * (wr - wl)), wt + 25
+
+
 def is_candidate(title: str, role: str, rect: tuple, window_rect: tuple) -> bool:
-    if role not in {'ListItem', 'TreeItem'} or not isinstance(title, str):
+    """Verify sidebar geometry; require additional structural proof later."""
+    if role not in {'ListItem', 'TreeItem', 'Hyperlink'} or not isinstance(title, str):
         return False
     title = clean_title(title)
-    if not 1 <= len(title) <= 160 or any(ord(c) < 32 for c in title):
-        return False
-    if title.casefold() in CHAT_LIST_NAMES:
+    if (not 1 <= len(title) <= 160 or any(ord(c) < 32 for c in title)
+            or title.casefold() in NON_CHAT_LABELS | CHAT_LIST_NAMES | PROJECT_LIST_NAMES):
         return False
     left, top, right, bottom = rect
     wl, wt, wr, wb = window_rect
-    width, height = wr - wl, wb - wt
-    return (width >= 460 and height >= 300 and
-            wl <= left < right <= wl + .45 * width and
-            wt + 35 <= top < bottom <= wb - 35 and bottom - top <= 65)
+    cut, upper = _sidebar_bounds(window_rect)
+    return (wr - wl >= 360 and wb - wt >= 240 and
+            wl <= left < right <= cut and
+            upper <= top < bottom <= wb - 15 and bottom - top <= 85)
+
+
+def _control_name(control) -> str:
+    """Read a literal accessible name, without guessing a title."""
+    try:
+        name = control.window_text()
+        if not name:
+            name = control.element_info.name
+        return clean_title(name) if isinstance(name, str) else ''
+    except Exception:
+        return ''
+
+
+def _sidebar_headings(controls, bounds):
+    cut, upper = _sidebar_bounds(bounds)
+    wl, wt, _, _ = bounds
+    headings = []
+    for ctrl in controls:
+        try:
+            if not ctrl.is_visible():
+                continue
+            label = _control_name(ctrl).casefold()
+            if label not in CHAT_LIST_NAMES | SECTION_BOUNDARIES:
+                continue
+            role = ctrl.element_info.control_type
+            if role not in {'Text', 'Header', 'Group', 'Pane', 'List', 'Tree', 'Button'}:
+                continue
+            left, top, right, bottom = _rect(ctrl)
+            if wl <= left < right <= cut and top >= wt + 20 and bottom <= bounds[3]:
+                headings.append((top, bottom, label))
+        except Exception:
+            continue
+    return sorted(set(headings))
+
+
+def _in_chat_heading_region(control, bounds, headings) -> bool:
+    try:
+        left, top, right, bottom = _rect(control)
+    except Exception:
+        return False
+    latest = None
+    for heading_top, heading_bottom, label in headings:
+        if heading_bottom > top or heading_bottom - heading_top > 90:
+            continue
+        if latest is None or heading_top > latest[0]:
+            latest = (heading_top, label)
+    return bool(latest and latest[1] in CHAT_LIST_NAMES)
+
+
+def _clickable_ancestor(control, window):
+    """Text child is a chat only if nested in genuine clickable navigation."""
+    cursor = control
+    for _ in range(3):
+        try:
+            cursor = cursor.parent()
+            if cursor is None or cursor == window:
+                break
+            if cursor.element_info.control_type in {'Hyperlink', 'ListItem', 'TreeItem', 'Button'}:
+                return cursor
+        except Exception:
+            break
+    return None
+
+
+def _candidate_row(control, window, bounds, headings):
+    try:
+        if not control.is_visible():
+            return None
+        role = control.element_info.control_type
+        title = _control_name(control)
+        navigation = control
+        if role == 'Text':
+            navigation = _clickable_ancestor(control, window)
+            if navigation is None:
+                return None
+        elif role not in {'Button', 'ListItem', 'TreeItem', 'Hyperlink'}:
+            return None
+        if not is_candidate(title, 'Hyperlink', _rect(control), bounds):
+            return None
+        if not (_within_explicit_chat_list(navigation, window)
+                or _in_chat_heading_region(control, bounds, headings)):
+            return None
+        if title.casefold() in SECTION_BOUNDARIES:
+            return None
+        return title
+    except Exception:
+        return None
+
+
+def _chat_rows(window, controls, bounds):
+    headings = _sidebar_headings(controls, bounds)
+    rows = []
+    for ctrl in controls:
+        title = _candidate_row(ctrl, window, bounds, headings)
+        if title:
+            rows.append((ctrl, title))
+    return rows
 
 
 def consolidate_titles(titles: list[str]) -> list[DiscoveredChat]:
@@ -121,25 +242,15 @@ def scan_window(window, limit: int = 500) -> list[DiscoveredChat]:
         raise UnsafeUI('Windows no expone controles de la aplicación') from exc
     seen_rows: set[tuple] = set()
     titles = []
-    for ctrl in controls:
-        try:
-            if not ctrl.is_visible():
-                continue
-            title = clean_title(ctrl.window_text())
-            if not is_candidate(title, ctrl.element_info.control_type, _rect(ctrl), bounds):
-                continue
-            if not _within_explicit_chat_list(ctrl, window):
-                continue
-            rect = _rect(ctrl)
-            key = (title.casefold(), int((rect[1] + rect[3]) / 24))
-            if key in seen_rows:
-                continue
-            seen_rows.add(key)
-            titles.append(title)
-            if len(titles) >= limit:
-                break
-        except Exception:
+    for ctrl, title in _chat_rows(window, controls, bounds):
+        rect = _rect(ctrl)
+        key = (title.casefold(), int((rect[1] + rect[3]) / 24))
+        if key in seen_rows:
             continue
+        seen_rows.add(key)
+        titles.append(title)
+        if len(titles) >= limit:
+            break
     return consolidate_titles(titles)
 
 
@@ -203,37 +314,89 @@ def _project_for_chat(control, window) -> str:
 
 
 def scan_window_with_projects(window, limit: int = 500) -> list[DiscoveredChat]:
-    """Returns ONLY actual accessible chat rows, with verified UIA project parents."""
-    results = scan_window(window, limit)
-    if not results:
-        return results
-    mapping = {}
-    for ctrl in _all_controls(window):
-        try:
-            title = clean_title(ctrl.window_text())
-            if not title or ctrl.element_info.control_type not in {'ListItem', 'TreeItem'}:
-                continue
-            if not ctrl.is_visible() or not _within_explicit_chat_list(ctrl, window):
-                continue
-            project = _project_for_chat(ctrl, window)
-            if project != UNKNOWN_PROJECT:
-                mapping.setdefault(title.casefold(), set()).add(project)
-        except Exception:
+    """Read only genuine accessible chat navigation and verified project parents."""
+    try:
+        controls = window.descendants()
+        bounds = _rect(window)
+    except Exception as exc:
+        raise UnsafeUI('No se pudo leer la jerarquía de accesibilidad') from exc
+    counts = {}
+    seen = set()
+    for ctrl, title in _chat_rows(window, controls, bounds):
+        rect = _rect(ctrl)
+        project = _project_for_chat(ctrl, window)
+        key = (project.casefold(), title.casefold())
+        identity = (*key, int((rect[1] + rect[3]) / 24))
+        if identity in seen:
             continue
-    return [DiscoveredChat(c.title, c.duplicates,
-            next(iter(mapping[c.title.casefold()])) if len(mapping.get(c.title.casefold(), ())) == 1 else UNKNOWN_PROJECT,
-            c.chat_id, c.source) for c in results]
+        seen.add(identity)
+        if key not in counts:
+            counts[key] = [title, project, 0]
+        counts[key][2] += 1
+        if len(counts) >= limit:
+            break
+    return [DiscoveredChat(name, count, project) for name, project, count in counts.values()]
 
 
 def _scroll_containers(window):
-    """Only scan explicitly labelled CHAT lists (never conversation body)."""
-    unique = []
-    for ctrl in _all_controls(window):
+    """Scroll verified chat containers even when the UIA container is unnamed."""
+    controls = _all_controls(window)
+    try:
+        bounds = _rect(window)
+    except Exception:
+        return []
+    accepted = [c for c, _ in _chat_rows(window, controls, bounds)]
+    cut, _ = _sidebar_bounds(bounds)
+    unique, seen = [], set()
+    for ctrl in accepted:
+        parent = ctrl
+        for _ in range(12):
+            try:
+                parent = parent.parent()
+                if parent is None or parent == window:
+                    break
+                rect = _rect(parent)
+                if rect[0] >= cut or rect[2] > cut + 35:
+                    continue
+                scroll = _scrollable(parent)
+                if scroll is not None and id(parent) not in seen:
+                    seen.add(id(parent))
+                    unique.append((parent, scroll))
+                    break
+            except Exception:
+                break
+    for ctrl in controls:
         if _is_named_list(ctrl, CHAT_LIST_NAMES):
             scroll = _scrollable(ctrl)
-            if scroll is not None:
+            if scroll is not None and id(ctrl) not in seen:
                 unique.append((ctrl, scroll))
+                seen.add(id(ctrl))
     return unique
+
+
+def _expand_sidebar_if_closed(window):
+    """Only click a verified Open-sidebar button, never guess target controls."""
+    try:
+        bounds = _rect(window)
+        wl, wt, _, _ = bounds
+        candidates = []
+        for ctrl in _all_controls(window):
+            if ctrl.element_info.control_type != 'Button' or not ctrl.is_visible():
+                continue
+            if _control_name(ctrl).casefold() not in SIDEBAR_TOGGLE_LABELS:
+                continue
+            x1, y1, x2, y2 = _rect(ctrl)
+            if wl <= x1 < x2 <= wl + 175 and wt <= y1 < y2 <= wt + 160:
+                candidates.append(ctrl)
+        if len(candidates) != 1:
+            return False
+        from app_adapter import _focus
+        _focus(window)
+        candidates[0].click_input()
+        time.sleep(.45)
+        return True
+    except Exception:
+        return False
 
 
 def _project_expanders(window):
@@ -284,6 +447,13 @@ def discover_all_chats(limit: int = 2000, seconds: float = MAX_SCAN_SECONDS) -> 
                 ambiguous.add(c.title.casefold())
 
     collect()
+    if not records and _expand_sidebar_if_closed(window):
+        collect()
+    # WebView may open the window before painting its accessibility tree.
+    retry_deadline = min(deadline, time.monotonic() + 4.0)
+    while not records and time.monotonic() < retry_deadline:
+        time.sleep(.55)
+        collect()
     # Expand any clearly identified project group, not random navigation items.
     expanded=[]
     try:

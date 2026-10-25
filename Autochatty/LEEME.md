@@ -1,4 +1,4 @@
-# Autochatty v6 — selección directa de conversaciones
+# Autochatty v7 — selección directa de conversaciones
 
 **Funciona con la aplicación ChatGPT para Windows.** No utiliza Edge, no se conecta a APIs privadas ni evita límites de uso.
 
@@ -11,6 +11,12 @@
 
 Los horarios y opciones que tenías de la v4/v5 se mantienen. Por seguridad, **el envío automático de mensajes sigue desactivado inicialmente**. Si lo habilitas, revisa antes el título de cada chat y haz una prueba controlada.
 
+## Corrección v7 de la detección vacía
+
+La v6 solo aceptaba ListItem/TreeItem en listas que Windows llamase exactamente "Chats". La v7 también reconoce Hyperlink, Button y Text dentro de un elemento navegable cuando un encabezado real de Chats o su jerarquía acredita el origen. Los botones de navegación y las etiquetas de proyecto no se consideran conversaciones. También puede desplegar una barra lateral identificada por UIA y espera un momento a que cargue WebView2.
+
+No se generan nombres de chats. Si la app no publica su historial en la accesibilidad de Windows, la detección sigue siendo imposible de garantizar.
+
 ## Qué detecta realmente
 
 - Solo títulos expuestos por los controles de accesibilidad de la aplicación ChatGPT. Puede desplazarse por las listas UIA y desplegar grupos de proyecto reconocibles, restaurando el estado al finalizar.
@@ -22,11 +28,9 @@ Los horarios y opciones que tenías de la v4/v5 se mantienen. Por seguridad, **e
 
 **No se ha probado contra tu instancia real de Windows.** El código se ha probado con simulaciones de UIA y pruebas de lógica; la compatibilidad de la interfaz puede cambiar tras actualizar ChatGPT.
 
-## Actualizador v4/v5 → v6
+## Actualización a v7
 
-Ejecuta `Actualizar_Autochatty_a_v6.exe`. El EXE lleva incorporado el paquete v6, abre un selector de carpetas y te pregunta dónde tienes Autochatty (carpeta de `controller.py`). Cierra el controlador antes de actualizar. Copia los archivos anteriores a `%LOCALAPPDATA%\ControladorChatGPT\backups` y conserva la configuración. No actualiza la app oficial de ChatGPT.
-
-Si tenías un `ControladorChatGPT.exe` principal compilado de una versión anterior, tendrás que usar el nuevo compilado por GitHub Actions, porque un EXE principal antiguo no lee automáticamente el nuevo Python. Puedes usar entretanto `iniciar.bat` con Python instalado.
+Descarga la compilación v7 desde GitHub Actions, o utiliza los archivos Python actualizados desde el ZIP. Conserva una copia del programa anterior y la configuración en %LOCALAPPDATA%\ControladorChatGPT. Si usas un EXE principal v6, debes sustituirlo por el EXE recompilado v7; los cambios en Python no afectan a un ejecutable antiguo.
 
 ## Desarrollo
 

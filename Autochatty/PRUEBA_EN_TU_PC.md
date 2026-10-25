@@ -1,13 +1,9 @@
-# Comprobación de la versión 6 en Windows
+# Prueba de Autochatty v7 en Windows
 
-1. Abre Autochatty con ChatGPT instalado y la sesión desbloqueada.
-2. Espera a que aparezca automáticamente la lista de chats sin elegir archivos ni pulsar importar.
-3. Comprueba que los nombres proceden realmente de la app. Usa varios proyectos; los no verificables deben quedar en «Sin proyecto verificado».
-4. Haz clic una sola vez sobre un chat y comprueba que queda seleccionado y guardado, sin otro botón.
-5. Reinicia Autochatty y verifica la persistencia.
-6. Si el historial es largo, comprueba que recorre filas accesibles y restaura el scroll; pueden faltar chats que UIA no expone.
-7. Revisa títulos duplicados: nunca deben ejecutarse sin ambigüedad.
-8. Antes de activar «Enviar automáticamente» prueba el chat específico con un título único; si falla, mantener la función desactivada.
-9. Verifica que el control de RAM, CPU, horario y Windows bloqueado impide acciones imprevistas.
+1. Sustituye la versión anterior por la compilación v7 y abre Autochatty.
+2. Abre ChatGPT en una sesión de Windows desbloqueada. La búsqueda se inicia automáticamente.
+3. Comprueba que solo aparecen títulos existentes y proyectos con relación verificada.
+4. Selecciona un chat con un clic. No se envían mensajes sin habilitar expresamente el envío experimental.
+5. Si sigue vacío, tu versión de ChatGPT puede no exponer chats por accesibilidad UIA: no se usan cachés privadas ni se inventan títulos.
 
-Estas pruebas finales requieren Windows y una sesión real de ChatGPT; **no están verificadas desde Linux**.
+Pruebas sintéticas superadas; la compatibilidad con tu instalación real de Windows está pendiente de verificación.
