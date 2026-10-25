@@ -1,0 +1,4 @@
+pywinauto>=0.6.9,<0.7
+pywin32>=306
+psutil>=5.9,<8
+pyperclip>=1.8,<2

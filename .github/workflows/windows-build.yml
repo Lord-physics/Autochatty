@@ -1,0 +1,49 @@
+name: Construir Autochatty Windows v6
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: Autochatty
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          architecture: 'x64'
+      - name: Instalar dependencias y probar
+        shell: pwsh
+        run: |
+          python -m pip install -r requirements.txt pyinstaller
+          python -m unittest discover -s tests -v
+      - name: Crear exe principal independiente
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name ControladorChatGPT --hidden-import=win32timezone --collect-submodules=pywinauto --add-data 'wake_task.ps1;.' controller.py
+      - name: Crear paquete para Windows
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path package | Out-Null
+          Copy-Item dist/ControladorChatGPT.exe package/
+          Copy-Item LEEME.md,PRUEBA_EN_TU_PC.md,requirements.txt,iniciar.bat,instalar.bat -Destination package/
+          Copy-Item ../releases/Actualizar_Autochatty_a_v6.exe package/
+          Compress-Archive -Path package/* -DestinationPath Autochatty_v6_Windows.zip -Force
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Autochatty-v6-Windows
+          path: Autochatty/Autochatty_v6_Windows.zip
+          if-no-files-found: error
+      - name: Publicar ejecutables si es etiqueta v*
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          gh release create '${{ github.ref_name }}' Autochatty_v6_Windows.zip dist/ControladorChatGPT.exe ../releases/Actualizar_Autochatty_a_v6.exe --title 'Autochatty ${{ github.ref_name }}' --notes 'Compilación experimental para Windows; consulte el LEEME.' --verify-tag

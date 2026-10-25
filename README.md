@@ -1,16 +1,16 @@
-# Autochatty — controlador de ChatGPT en Windows
+# Autochatty v6
 
-## Estado de la versión 5
+Controlador de conversaciones para la aplicación oficial ChatGPT de Windows 10/11.
 
-La versión v5 del paquete local introduce:
-- Exploración conservadora de títulos **realmente expuestos** por la interfaz de accesibilidad de Windows. No genera nombres sintéticos.
-- Importación local de `conversations.json` desde un ZIP de exportación oficial de ChatGPT para conseguir mayor cobertura que la barra lateral visible.
-- Agrupación por proyectos solo si el archivo contiene referencias y nombres de proyecto verificables. De otro modo, `Sin proyecto verificado`.
-- Detección de títulos duplicados, evitando la ejecución automática cuando la selección de conversación es ambigua.
-- La v5 conserva los horarios, el control de recursos y los estados anteriores.
+- Descubre automáticamente títulos de chats visibles o accesibles mediante Windows UI Automation.
+- Presenta selección directa con un clic, agrupada por proyectos cuando su relación es verificable.
+- Conserva los horarios y las tareas anteriores.
+- No inventa chats, no lee el contenido de mensajes ni elude límites de uso.
 
-**Advertencia:** el repositorio todavía no contiene el código fuente completo ni un ejecutable compilado de v5. El paquete ZIP de código está disponible en la conversación de ChatGPT donde se generó. No se ha probado el módulo UIA contra la app instalada del usuario.
+**Instalación:** consulta [`Autochatty/LEEME.md`](Autochatty/LEEME.md).
 
-La importación de datos se procesa localmente. No subas a GitHub tu exportación, el historial ni el archivo de configuración de usuario.
+**Limitación:** no hay garantía de enumerar todo el historial, especialmente archivados y chats no expuestos por UIA. La automatización y detección no se han probado en la app de este usuario.
 
-La app oficial de ChatGPT no ofrece aquí una integración documentada que permita enumerar todo el historial o todos los proyectos en tiempo real: los resultados por UIA son necesariamente parciales.
+**Actualización v4/v5 → v6:** descarga `releases/Actualizar_Autochatty_a_v6.exe` (actualizador offline, sin firma digital). Elige dónde está instalada la versión anterior. Compilación del controlador principal en la pestaña **Actions**.
+
+Nunca subas configuraciones locales ni exportaciones de conversaciones al repositorio.
